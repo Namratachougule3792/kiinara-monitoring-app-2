@@ -1,18 +1,21 @@
 <template>
-  <div class="flex">
-    <!-- Sidebar -->
-    <div class="w-64 bg-gray-800 text-white min-h-screen p-4">
-      <h2 class="text-xl font-bold mb-6">Kiinara OS</h2>
-      <ul>
-        <li class="mb-2"><NuxtLink to="/dashboard">Health</NuxtLink></li>
-        <li class="mb-2"><NuxtLink to="/billing">Billing</NuxtLink></li>
-        <li class="mb-2"><NuxtLink to="/alerts">Alerts</NuxtLink></li>
-      </ul>
+  <div class="flex bg-[#0B1220] text-white min-h-screen">
+
+    <!-- SIDEBAR -->
+    <div class="w-56 bg-[#0F172A] p-5">
+      <h1 class="text-white font-bold mb-6">Kiinara OS</h1>
+
+      <nav class="space-y-3 text-gray-300">
+        <NuxtLink to="/dashboard" class="block hover:text-white">Health</NuxtLink>
+        <NuxtLink to="/billing" class="block hover:text-white">Billing</NuxtLink>
+        <NuxtLink to="/status" class="block hover:text-white">Public Status</NuxtLink>
+      </nav>
     </div>
 
-    <!-- Content -->
-    <div class="flex-1 p-6">
+    <!-- CONTENT -->
+    <div class="flex-1">
       <slot />
     </div>
+
   </div>
 </template>
