@@ -4,14 +4,16 @@ import {
 } from "@aws-sdk/client-cloudwatch-logs";
 
 export default defineEventHandler(async () => {
-  const accessKeyId = process.env.MY_AWS_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.MY_AWS_SECRET_ACCESS_KEY;
-  const region = process.env.MY_AWS_REGION;
+  const config = useRuntimeConfig();
 
-  //  Debug check
+  const accessKeyId = config.awsAccessKeyId;
+  const secretAccessKey = config.awsSecretAccessKey;
+  const region = config.awsRegion;
+
+  // Debug
   if (!accessKeyId || !secretAccessKey || !region) {
     return {
-      error: "ENV variables missing",
+      error: "ENV variables missing via runtimeConfig",
       debug: {
         accessKeyId: accessKeyId ? "OK" : "MISSING",
         secretAccessKey: secretAccessKey ? "OK" : "MISSING",
@@ -34,7 +36,7 @@ export default defineEventHandler(async () => {
 
     return res.logGroups || [];
   } catch (err: any) {
-    console.error("FULL AWS ERROR:", err);
+    console.error("AWS ERROR:", err);
 
     return {
       error: err.message,
