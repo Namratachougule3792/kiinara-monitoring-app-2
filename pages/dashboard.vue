@@ -1,43 +1,44 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { onMounted, computed } from 'vue'
 
-const services = ref([])
+/*  FETCH REAL DATA */
+const { data, refresh } = await useFetch('/api/health')
 
+/* 🔁 AUTO REFRESH (REAL-TIME) */
 onMounted(() => {
-  services.value = [
-    { name: "Admissions", status: "Healthy", requests: 1200, errors: 12, latency: 120 },
-    { name: "Attendance", status: "Degraded", requests: 900, errors: 45, latency: 280 },
-    { name: "Billing", status: "Down", requests: 300, errors: 120, latency: 900 },
-    { name: "Identity", status: "Healthy", requests: 1500, errors: 5, latency: 90 }
-  ]
+  setInterval(() => {
+    refresh()
+  }, 5000)
 })
 
+/*  SERVICES DATA */
+const services = computed(() => data.value || [])
+
+/* 🎨 STATUS COLOR */
 const statusColor = (status) => {
   if (status === 'Healthy') return 'bg-green-500'
   if (status === 'Degraded') return 'bg-yellow-400 text-black'
   return 'bg-red-500'
 }
 
+/*  ERROR RATE */
 const errorRate = (s) => {
+  if (!s.requests) return 0
   return ((s.errors / s.requests) * 100).toFixed(2)
 }
 
-/*  CONTROLLED PATTERN (NOT RANDOM CHAOS) */
+/*  GRAPH BARS */
 const generateBars = (status) => {
   const bars = []
 
   for (let i = 0; i < 70; i++) {
     if (status === 'Healthy') {
       bars.push(i % 50 === 0 ? 'bg-red-400' : 'bg-green-400')
-    }
-
-    else if (status === 'Degraded') {
+    } else if (status === 'Degraded') {
       if (i % 15 === 0) bars.push('bg-yellow-400')
       else if (i % 40 === 0) bars.push('bg-red-400')
       else bars.push('bg-green-400')
-    }
-
-    else {
+    } else {
       if (i % 3 === 0) bars.push('bg-red-400')
       else bars.push('bg-green-400')
     }
@@ -58,7 +59,7 @@ const generateBars = (status) => {
       </div>
 
       <div class="bg-red-500 px-4 py-2 rounded-full text-sm">
-        ● System Outage
+        ● Live Monitoring
       </div>
     </div>
 
@@ -76,14 +77,18 @@ const generateBars = (status) => {
           <div>
             <h2 class="text-lg font-semibold">{{ s.name }}</h2>
             <p class="text-gray-400 text-sm">
-              {{ s.status === 'Healthy' ? 'Operating normally' :
-                 s.status === 'Degraded' ? 'Performance issues' :
-                 'Service outage' }}
+              {{
+                s.status === 'Healthy' ? 'Operating normally' :
+                s.status === 'Degraded' ? 'Performance issues' :
+                'Service outage'
+              }}
             </p>
           </div>
 
-          <span class="px-3 py-1 rounded-full text-sm"
-            :class="statusColor(s.status)">
+          <span
+            class="px-3 py-1 rounded-full text-sm"
+            :class="statusColor(s.status)"
+          >
             {{ s.status }}
           </span>
         </div>
@@ -111,7 +116,7 @@ const generateBars = (status) => {
           Error Rate: {{ errorRate(s) }}%
         </p>
 
-        <!--  EXACT MATCH BARS -->
+        <!-- GRAPH -->
         <div class="flex items-center gap-[3px] mt-4">
           <div
             v-for="(bar, i) in generateBars(s.status)"
@@ -119,6 +124,16 @@ const generateBars = (status) => {
             class="w-[3px] h-6 rounded-sm"
             :class="bar"
           ></div>
+        </div>
+
+        <!--  VIEW LOG BUTTON (ONLY WHEN ERROR) -->
+        <div class="mt-4 flex justify-end">
+          <button
+            v-if="s.status === 'Down'"
+            class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-md text-sm"
+          >
+            View Logs
+          </button>
         </div>
 
         <!-- FOOTER -->
