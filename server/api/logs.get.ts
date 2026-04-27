@@ -1,40 +1,37 @@
 import {
   CloudWatchLogsClient,
-  DescribeLogGroupsCommand
+  GetLogEventsCommand
 } from "@aws-sdk/client-cloudwatch-logs";
 
 export default defineEventHandler(async () => {
   const config = useRuntimeConfig();
 
-  const accessKeyId = config.awsAccessKeyId;
-  const secretAccessKey = config.awsSecretAccessKey;
-  const region = config.awsRegion;
-
-  // Debug
-  if (!accessKeyId || !secretAccessKey || !region) {
-    return {
-      error: "ENV variables missing via runtimeConfig",
-      debug: {
-        accessKeyId: accessKeyId ? "OK" : "MISSING",
-        secretAccessKey: secretAccessKey ? "OK" : "MISSING",
-        region: region || "MISSING"
-      }
-    };
-  }
-
   const client = new CloudWatchLogsClient({
-    region,
+    region: config.awsRegion?.trim(),
     credentials: {
-      accessKeyId,
-      secretAccessKey,
+      accessKeyId: config.awsAccessKeyId,
+      secretAccessKey: config.awsSecretAccessKey,
     },
   });
 
   try {
-    const command = new DescribeLogGroupsCommand({});
+    const command = new GetLogEventsCommand({
+      logGroupName: "kiinara-app-logs",
+      logStreamName: "app-stream",
+    });
+
     const res = await client.send(command);
 
-    return res.logGroups || [];
+    // parse logs (IMPORTANT)
+    const logs = res.events?.map((e: any) => {
+      try {
+        return JSON.parse(e.message);
+      } catch {
+        return e.message;
+      }
+    }) || [];
+
+    return logs;
   } catch (err: any) {
     console.error("AWS ERROR:", err);
 
