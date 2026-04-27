@@ -1,52 +1,30 @@
 <script setup>
-import { onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 
-/*  FETCH REAL DATA */
-const { data, refresh } = await useFetch('/api/health')
+const services = ref([])
 
-/* 🔁 AUTO REFRESH (REAL-TIME) */
+const fetchData = async () => {
+  const res = await $fetch('/api/health')
+  services.value = res
+}
+
 onMounted(() => {
-  setInterval(() => {
-    refresh()
-  }, 5000)
+  fetchData()
+
+  // auto refresh every 5 sec
+  setInterval(fetchData, 5000)
 })
 
-/*  SERVICES DATA */
-const services = computed(() => data.value || [])
-
-/* 🎨 STATUS COLOR */
 const statusColor = (status) => {
   if (status === 'Healthy') return 'bg-green-500'
   if (status === 'Degraded') return 'bg-yellow-400 text-black'
   return 'bg-red-500'
 }
 
-/*  ERROR RATE */
 const errorRate = (s) => {
   if (!s.requests) return 0
   return ((s.errors / s.requests) * 100).toFixed(2)
-}
-
-/*  GRAPH BARS */
-const generateBars = (status) => {
-  const bars = []
-
-  for (let i = 0; i < 70; i++) {
-    if (status === 'Healthy') {
-      bars.push(i % 50 === 0 ? 'bg-red-400' : 'bg-green-400')
-    } else if (status === 'Degraded') {
-      if (i % 15 === 0) bars.push('bg-yellow-400')
-      else if (i % 40 === 0) bars.push('bg-red-400')
-      else bars.push('bg-green-400')
-    } else {
-      if (i % 3 === 0) bars.push('bg-red-400')
-      else bars.push('bg-green-400')
-    }
-  }
-
-  return bars
-}
-</script>
+}</script>
 
 <template>
   <div class="p-8 text-white bg-[#020617] min-h-screen">
