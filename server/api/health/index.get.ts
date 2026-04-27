@@ -5,7 +5,7 @@ const SERVICES = ["Admissions", "Attendance", "Billing", "Identity"]
 export default defineEventHandler(async () => {
   const logs = await prisma.logs.findMany({
     orderBy: { createdAt: 'desc' },
-    take: 200
+    take: 100
   })
 
   const map: any = {}
@@ -29,14 +29,16 @@ export default defineEventHandler(async () => {
     if (l.status >= 400) s.errors++
   })
 
-  return Object.values(map).map((s: any) => {
+  return SERVICES.map((name) => {
+    const s = map[name]
+
     const avgLatency = s.requests
       ? Math.floor(s.latency / s.requests)
       : 0
 
     let status = "Healthy"
-    if (s.errors > 10) status = "Down"
-    else if (s.errors > 3) status = "Degraded"
+    if (s.errors > 15) status = "Down"
+    else if (s.errors > 5) status = "Degraded"
 
     return {
       ...s,
