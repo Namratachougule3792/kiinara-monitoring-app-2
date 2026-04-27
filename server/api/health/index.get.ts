@@ -1,74 +1,47 @@
-import {
-  CloudWatchLogsClient,
-  GetLogEventsCommand
-} from "@aws-sdk/client-cloudwatch-logs";
+import { prisma } from '../../db'
+
+const SERVICES = ["Admissions", "Attendance", "Billing", "Identity"]
 
 export default defineEventHandler(async () => {
-  const config = useRuntimeConfig();
+  const logs = await prisma.logs.findMany({
+    orderBy: { createdAt: 'desc' },
+    take: 200
+  })
 
-  const client = new CloudWatchLogsClient({
-    region: config.awsRegion?.trim(),
-    credentials: {
-      accessKeyId: config.awsAccessKeyId,
-      secretAccessKey: config.awsSecretAccessKey,
-    },
-  });
+  const map: any = {}
 
-  try {
-    const res = await client.send(
-      new GetLogEventsCommand({
-        logGroupName: "kiinara-app-logs",
-        logStreamName: "app-stream",
-      })
-    );
+  // initialize all services
+  SERVICES.forEach((s) => {
+    map[s] = {
+      name: s,
+      requests: 0,
+      errors: 0,
+      latency: 0
+    }
+  })
 
-    const logs = res.events?.map((e: any) => {
-      try {
-        return JSON.parse(e.message);
-      } catch {
-        return null;
-      }
-    }).filter(Boolean) || [];
+  logs.forEach((l) => {
+    const s = map[l.service]
 
-    const map: any = {};
+    if (!s) return
 
-    logs.forEach((l: any) => {
-      if (!map[l.service]) {
-        map[l.service] = {
-          name: l.service,
-          requests: 0,
-          errors: 0,
-          latency: 0
-        };
-      }
+    s.requests++
+    s.latency += l.latency
 
-      map[l.service].requests++;
-      map[l.service].latency += l.latency;
+    if (l.status >= 400) s.errors++
+  })
 
-      if (l.status === "Down") {
-        map[l.service].errors++;
-      }
-    });
+  return Object.values(map).map((s: any) => {
+    const avgLatency = s.requests ? Math.floor(s.latency / s.requests) : 0
 
-    return Object.values(map).map((s: any) => {
-      const avgLatency = s.requests
-        ? Math.floor(s.latency / s.requests)
-        : 0;
+    let status = "Healthy"
+    if (s.errors > 10) status = "Down"
+    else if (s.errors > 3) status = "Degraded"
 
-      let status = "Healthy";
-      if (s.errors > 5) status = "Down";
-      else if (s.errors > 2) status = "Degraded";
-
-      return {
-        ...s,
-        latency: avgLatency,
-        status
-      };
-    });
-
-  } catch (err: any) {
     return {
-      error: err.message
-    };
-  }
-});
+      ...s,
+      latency: avgLatency,
+      status
+    }
+  })
+})
