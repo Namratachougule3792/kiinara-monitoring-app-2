@@ -1,37 +1,74 @@
-import { prisma } from '../../db'
+import {
+  CloudWatchLogsClient,
+  GetLogEventsCommand
+} from "@aws-sdk/client-cloudwatch-logs";
 
 export default defineEventHandler(async () => {
-  const logs = await prisma.logs.findMany()
+  const config = useRuntimeConfig();
 
-  const map: any = {}
+  const client = new CloudWatchLogsClient({
+    region: config.awsRegion?.trim(),
+    credentials: {
+      accessKeyId: config.awsAccessKeyId,
+      secretAccessKey: config.awsSecretAccessKey,
+    },
+  });
 
-  logs.forEach((l) => {
-    if (!map[l.service]) {
-      map[l.service] = {
-        name: l.service,
-        requests: 0,
-        errors: 0,
-        latency: 0
+  try {
+    const res = await client.send(
+      new GetLogEventsCommand({
+        logGroupName: "kiinara-app-logs",
+        logStreamName: "app-stream",
+      })
+    );
+
+    const logs = res.events?.map((e: any) => {
+      try {
+        return JSON.parse(e.message);
+      } catch {
+        return null;
       }
-    }
+    }).filter(Boolean) || [];
 
-    map[l.service].requests++
-    map[l.service].latency += l.latency
+    const map: any = {};
 
-    if (l.status >= 400) map[l.service].errors++
-  })
+    logs.forEach((l: any) => {
+      if (!map[l.service]) {
+        map[l.service] = {
+          name: l.service,
+          requests: 0,
+          errors: 0,
+          latency: 0
+        };
+      }
 
-  return Object.values(map).map((s: any) => {
-    const avgLatency = s.requests ? Math.floor(s.latency / s.requests) : 0
+      map[l.service].requests++;
+      map[l.service].latency += l.latency;
 
-    let status = "Healthy"
-    if (s.errors > 20) status = "Down"
-    else if (s.errors > 5) status = "Degraded"
+      if (l.status === "Down") {
+        map[l.service].errors++;
+      }
+    });
 
+    return Object.values(map).map((s: any) => {
+      const avgLatency = s.requests
+        ? Math.floor(s.latency / s.requests)
+        : 0;
+
+      let status = "Healthy";
+      if (s.errors > 5) status = "Down";
+      else if (s.errors > 2) status = "Degraded";
+
+      return {
+        ...s,
+        latency: avgLatency,
+        status
+      };
+    });
+
+  } catch (err: any) {
     return {
-      ...s,
-      latency: avgLatency,
-      status
-    }
-  })
-})
+      error: err.message
+    };
+  }
+});
