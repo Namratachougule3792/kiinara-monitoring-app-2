@@ -1,22 +1,45 @@
-import { prisma } from '../db'
+import {
+  CloudWatchLogsClient,
+  GetLogEventsCommand
+} from "@aws-sdk/client-cloudwatch-logs";
 
 export default defineEventHandler(async () => {
-  const data = await prisma.usage.findMany()
+  const config = useRuntimeConfig();
 
-  const map: any = {}
+  const client = new CloudWatchLogsClient({
+    region: config.awsRegion?.trim(),
+    credentials: {
+      accessKeyId: config.awsAccessKeyId,
+      secretAccessKey: config.awsSecretAccessKey,
+    },
+  });
 
-  data.forEach((d) => {
-    if (!map[d.service]) {
-      map[d.service] = {
-        service: d.service,
+  const res = await client.send(
+    new GetLogEventsCommand({
+      logGroupName: "kiinara-app-logs",
+      logStreamName: "app-stream",
+    })
+  );
+
+  const logs = res.events?.map((e: any) => JSON.parse(e.message)) || [];
+
+  const map: any = {};
+
+  logs.forEach((l: any) => {
+    if (!map[l.service]) {
+      map[l.service] = {
+        service: l.service,
         requests: 0,
-        cost: 0
-      }
+        cost: 0,
+        school: l.school
+      };
     }
 
-    map[d.service].requests += d.requests
-    map[d.service].cost += d.cost
-  })
+    map[l.service].requests++;
 
-  return Object.values(map)
-})
+    // simple cost logic
+    map[l.service].cost += 0.05;
+  });
+
+  return Object.values(map);
+});
