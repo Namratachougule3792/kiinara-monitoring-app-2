@@ -10,7 +10,6 @@ export default defineEventHandler(async () => {
 
   const map: any = {}
 
-  // initialize all services
   SERVICES.forEach((s) => {
     map[s] = {
       name: s,
@@ -22,7 +21,6 @@ export default defineEventHandler(async () => {
 
   logs.forEach((l) => {
     const s = map[l.service]
-
     if (!s) return
 
     s.requests++
@@ -32,7 +30,9 @@ export default defineEventHandler(async () => {
   })
 
   return Object.values(map).map((s: any) => {
-    const avgLatency = s.requests ? Math.floor(s.latency / s.requests) : 0
+    const avgLatency = s.requests
+      ? Math.floor(s.latency / s.requests)
+      : 0
 
     let status = "Healthy"
     if (s.errors > 10) status = "Down"
