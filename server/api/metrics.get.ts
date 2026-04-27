@@ -1,45 +1,24 @@
-import {
-  CloudWatchLogsClient,
-  GetLogEventsCommand
-} from "@aws-sdk/client-cloudwatch-logs";
+import { prisma } from '../db'
 
 export default defineEventHandler(async () => {
-  const config = useRuntimeConfig();
+  const logs = await prisma.logs.findMany()
 
-  const client = new CloudWatchLogsClient({
-    region: config.awsRegion?.trim(),
-    credentials: {
-      accessKeyId: config.awsAccessKeyId,
-      secretAccessKey: config.awsSecretAccessKey,
-    },
-  });
+  const pricePerRequest = 0.05
 
-  const res = await client.send(
-    new GetLogEventsCommand({
-      logGroupName: "kiinara-app-logs",
-      logStreamName: "app-stream",
-    })
-  );
+  const map: any = {}
 
-  const logs = res.events?.map((e: any) => JSON.parse(e.message)) || [];
-
-  const map: any = {};
-
-  logs.forEach((l: any) => {
+  logs.forEach((l) => {
     if (!map[l.service]) {
       map[l.service] = {
         service: l.service,
         requests: 0,
-        cost: 0,
-        school: l.school
-      };
+        cost: 0
+      }
     }
 
-    map[l.service].requests++;
+    map[l.service].requests++
+    map[l.service].cost += pricePerRequest
+  })
 
-    // simple cost logic
-    map[l.service].cost += 0.05;
-  });
-
-  return Object.values(map);
-});
+  return Object.values(map)
+})
