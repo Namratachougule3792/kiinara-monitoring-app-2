@@ -6,13 +6,17 @@ import {
 export default defineEventHandler(async () => {
   const client = new CloudWatchLogsClient({
     region: process.env.AWS_REGION,
+    credentials: {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID as string,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY as string,
+    },
   });
 
   try {
     const command = new DescribeLogGroupsCommand({});
     const res = await client.send(command);
 
-    return res.logGroups;
+    return res.logGroups || [];
   } catch (err) {
     console.error("CloudWatch error:", err);
     return { error: "Failed to fetch logs" };
