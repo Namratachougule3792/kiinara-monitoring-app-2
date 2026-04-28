@@ -1,9 +1,40 @@
-export default defineEventHandler(async () => {
-  const logs = await $fetch('/api/logs')
+import { createClient } from '@supabase/supabase-js'
+
+export default defineEventHandler(async (event) => {
+  const config = useRuntimeConfig()
+
+  const supabase = createClient(
+    config.public.supabaseUrl,
+    config.public.supabaseKey
+  )
+
+  const { data: logs } = await supabase
+    .from('Log')
+    .select('*')
+
+  const query = getQuery(event)
+
+  const school = query.school
+  const from = query.from
+  const to = query.to
+
+  let filtered = logs || []
+
+  if (school && school !== "All") {
+    filtered = filtered.filter(l => l.school === school)
+  }
+
+  if (from) {
+    filtered = filtered.filter(l => new Date(l.createdAt) >= new Date(from))
+  }
+
+  if (to) {
+    filtered = filtered.filter(l => new Date(l.createdAt) <= new Date(to))
+  }
 
   const map: any = {}
 
-  logs.forEach((l: any) => {
+  filtered.forEach((l) => {
     if (!map[l.service]) {
       map[l.service] = {
         service: l.service,
@@ -13,19 +44,15 @@ export default defineEventHandler(async () => {
     }
 
     map[l.service].requests++
-
-    // simple cost logic (₹0.05 per request)
     map[l.service].cost += 0.05
   })
 
   const services = Object.values(map)
 
-  const totalRequests = services.reduce((a: any, b: any) => a + b.requests, 0)
-  const totalCost = services.reduce((a: any, b: any) => a + b.cost, 0)
-
   return {
-    totalRequests,
-    totalCost,
-    services
+    services,
+    totalRequests: filtered.length,
+    totalCost: filtered.length * 0.05,
+    schools: [...new Set((logs || []).map(l => l.school || "School A"))]
   }
 })

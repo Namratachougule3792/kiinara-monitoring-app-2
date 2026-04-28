@@ -21,6 +21,8 @@ onMounted(async () => {
 
 <h1 class="text-3xl mb-6">Logs</h1>
 
+<div v-if="logs.length === 0">No logs found</div>
+
 <div v-for="l in logs" :key="l.id" class="mb-3 p-3 bg-[#1e293b] rounded">
   <p><b>{{ l.service }}</b> - {{ l.status }}</p>
   <p>Latency: {{ l.latency }} ms</p>
