@@ -1,22 +1,22 @@
-import { createClient } from '@supabase/supabase-js'
+import {
+  CloudWatchLogsClient,
+  GetLogEventsCommand
+} from "@aws-sdk/client-cloudwatch-logs"
 
 export default defineEventHandler(async () => {
-  const config = useRuntimeConfig()
+  const client = new CloudWatchLogsClient({
+    region: process.env.AWS_REGION,
+    credentials: {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!
+    }
+  })
 
-  const supabase = createClient(
-    config.supabaseUrl,
-    config.supabaseKey
-  )
+  const res = await client.send(new GetLogEventsCommand({
+    logGroupName: "kiinara-app-logs",
+    logStreamName: "app-stream",
+    limit: 50
+  }))
 
-  const { data, error } = await supabase
-    .from('Log')
-    .select('*')
-    .order('createdAt', { ascending: false })
-    .limit(100)
-
-  if (error) {
-    return { error: error.message }
-  }
-
-  return data
+  return res.events || []
 })
