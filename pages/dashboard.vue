@@ -4,47 +4,12 @@ import { ref, onMounted, onUnmounted } from 'vue'
 const services = ref([])
 let intervalId
 
-const transform = (logs) => {
-  const map = {}
-
-  logs.forEach(l => {
-    if (!map[l.service]) {
-      map[l.service] = {
-        name: l.service,
-        requests: 0,
-        errors: 0,
-        latency: 0,
-        status: "Healthy"
-      }
-    }
-
-    map[l.service].requests++
-    map[l.service].latency += l.latency
-
-    if (l.status === "Down") {
-      map[l.service].errors++
-    }
-  })
-
-  return Object.values(map).map(s => {
-    const avgLatency = Math.round(s.latency / s.requests)
-    const errorRate = s.errors / s.requests
-
-    let status = "Healthy"
-    if (errorRate > 0.3) status = "Down"
-    else if (errorRate > 0.1) status = "Degraded"
-
-    return {
-      ...s,
-      latency: avgLatency,
-      status
-    }
-  })
-}
-
 const load = async () => {
-  const logs = await $fetch('/api/logs')
-  services.value = transform(logs)
+  try {
+    services.value = await $fetch('/api/health')
+  } catch (e) {
+    console.error("Health error:", e)
+  }
 }
 
 onMounted(() => {
@@ -61,6 +26,10 @@ const color = (s) =>
 
 const rate = (s) =>
   s.requests ? ((s.errors / s.requests) * 100).toFixed(2) : 0
+
+const openLogs = (service) => {
+  alert(`Logs for ${service} (CloudWatch later connect karu)`)
+}
 </script>
 
 <template>
@@ -72,17 +41,26 @@ const rate = (s) =>
 
 <div v-for="s in services" :key="s.name" class="bg-[#1e293b] p-6 rounded">
 
-<h2>{{ s.name }}</h2>
+<h2 class="text-xl mb-2">{{ s.name }}</h2>
 
 <span :class="color(s.status)" class="px-2 py-1 rounded text-sm">
 {{ s.status }}
 </span>
 
-<p>Requests: {{ s.requests }}</p>
+<p class="mt-2">Requests: {{ s.requests }}</p>
 <p>Errors: {{ s.errors }}</p>
 <p>Latency: {{ s.latency }} ms</p>
 
 <p class="text-red-400">Error Rate: {{ rate(s) }}%</p>
+
+<!-- ✅ VIEW LOG BUTTON -->
+<button 
+  v-if="s.status !== 'Healthy'"
+  class="mt-3 px-3 py-1 bg-red-600 rounded"
+  @click="openLogs(s.name)"
+>
+  View Logs
+</button>
 
 </div>
 

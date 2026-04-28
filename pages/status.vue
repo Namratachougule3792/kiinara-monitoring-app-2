@@ -10,11 +10,11 @@ onMounted(async () => {
     const status = await $fetch('/api/status')
 
     services.value = health
-    overall.value = status.overall
+    overall.value = status.overall || 'Healthy'
 
   } catch (err) {
     console.error("Status error:", err)
-    overall.value = 'Error'
+    overall.value = 'Down'
   }
 })
 </script>
@@ -24,7 +24,7 @@ onMounted(async () => {
 
 <h1 class="text-3xl mb-4">Platform Status</h1>
 
-<h2 class="mb-6">
+<h2 class="mb-6 text-xl">
 Overall: 
 <span :class="overall === 'Healthy' ? 'text-green-400' : 'text-red-400'">
   {{ overall }}
