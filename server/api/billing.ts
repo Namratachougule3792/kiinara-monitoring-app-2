@@ -1,58 +1,61 @@
 import { createClient } from '@supabase/supabase-js'
 
+const COST_PER_REQUEST = 0.05
+
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
-
-  const supabase = createClient(
-    config.public.supabaseUrl,
-    config.public.supabaseKey
-  )
-
-  const { data: logs } = await supabase
-    .from('Log')
-    .select('*')
-
   const query = getQuery(event)
 
-  const school = query.school
-  const from = query.from
-  const to = query.to
+  const supabase = createClient(config.supabaseUrl, config.supabaseKey)
 
-  let filtered = logs || []
+  let req = supabase.from('logs').select('*')
 
-  if (school && school !== "All") {
-    filtered = filtered.filter(l => l.school === school)
+  if (query.from) req = req.gte('created_at', new Date(query.from as string).toISOString())
+  if (query.to) {
+    const toDate = new Date(query.to as string)
+    toDate.setHours(23, 59, 59, 999)
+    req = req.lte('created_at', toDate.toISOString())
   }
 
-  if (from) {
-    filtered = filtered.filter(l => new Date(l.createdAt) >= new Date(from))
+  const { data: logs, error } = await req.order('created_at', { ascending: false })
+
+  if (error) {
+    return { services: [], schools: [], schoolBreakdown: [], totalRequests: 0, totalCost: 0 }
   }
 
-  if (to) {
-    filtered = filtered.filter(l => new Date(l.createdAt) <= new Date(to))
-  }
+  const allLogs = logs || []
 
-  const map: any = {}
+  const { data: schoolRows } = await supabase.from('schools').select('name').order('name')
+  const allSchools = schoolRows?.map((r: any) => r.name) ||
+    [...new Set(allLogs.map((l: any) => l.school).filter(Boolean))].sort()
 
-  filtered.forEach((l) => {
-    if (!map[l.service]) {
-      map[l.service] = {
-        service: l.service,
-        requests: 0,
-        cost: 0
-      }
+  const filtered = (query.school && query.school !== 'All')
+    ? allLogs.filter((l: any) => l.school === query.school)
+    : allLogs
+
+  const serviceMap: Record<string, any> = {}
+  filtered.forEach((l: any) => {
+    if (!serviceMap[l.service]) {
+      serviceMap[l.service] = { service: l.service, requests: 0, errors: 0, cost: 0 }
     }
-
-    map[l.service].requests++
-    map[l.service].cost += 0.05
+    serviceMap[l.service].requests++
+    serviceMap[l.service].cost += COST_PER_REQUEST
+    if (l.status >= 400) serviceMap[l.service].errors++
   })
 
-  const services = Object.values(map)
+  const schoolMap: Record<string, any> = {}
+  filtered.forEach((l: any) => {
+    const key = l.school || 'Unknown'
+    if (!schoolMap[key]) schoolMap[key] = { school: key, requests: 0, cost: 0 }
+    schoolMap[key].requests++
+    schoolMap[key].cost += COST_PER_REQUEST
+  })
 
   return {
-    services,
+    services: Object.values(serviceMap).sort((a: any, b: any) => b.requests - a.requests),
+    schoolBreakdown: Object.values(schoolMap).sort((a: any, b: any) => b.requests - a.requests),
+    schools: allSchools,
     totalRequests: filtered.length,
-    totalCost: filtered.length * 0.05,
-    schools: [...new Set((logs || []).map(l => l.school || "School A"))]
+    totalCost: +(filtered.length * COST_PER_REQUEST).toFixed(2)
   }
 })
