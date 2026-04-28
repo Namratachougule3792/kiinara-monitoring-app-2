@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js'
-import { sendLog } from '../../utils/cloudwatch'
 
 const SERVICES = ["Admissions", "Attendance", "Billing", "Identity"]
 
@@ -19,39 +18,29 @@ export default defineEventHandler(async () => {
 
   const map: any = {}
 
-  SERVICES.forEach((s) => {
+  SERVICES.forEach(s => {
     map[s] = { name: s, requests: 0, errors: 0, latency: 0 }
   })
 
-  for (const l of logs || []) {
+  logs?.forEach(l => {
     const s = map[l.service]
-    if (!s) continue
+    if (!s) return
 
     s.requests++
     s.latency += l.latency
 
-    if (l.status === "Down") {
-      s.errors++
+    if (l.status >= 400) s.errors++
+  })
 
-      // ❗ only send few logs (avoid spam)
-      if (s.errors < 3) {
-        await sendLog(`${l.service} DOWN at ${l.createdAt}`)
-      }
-    }
-  }
-
-  return SERVICES.map((name) => {
+  return SERVICES.map(name => {
     const s = map[name]
 
-    const avgLatency = s.requests
-      ? Math.floor(s.latency / s.requests)
-      : 0
+    const avg = s.requests ? Math.floor(s.latency / s.requests) : 0
 
     let status = "Healthy"
+    if (s.errors >= 3) status = "Down"
+    else if (s.errors >= 1) status = "Degraded"
 
-    if (s.errors >= s.requests * 0.5) status = "Down"
-    else if (s.errors > 0) status = "Degraded"
-
-    return { ...s, latency: avgLatency, status }
+    return { ...s, latency: avg, status }
   })
 })
