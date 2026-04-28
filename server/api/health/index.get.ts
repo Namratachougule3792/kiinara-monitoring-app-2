@@ -11,26 +11,16 @@ export default defineEventHandler(async () => {
     config.public.supabaseKey
   )
 
-  const { data: logs, error } = await supabase
+  const { data: logs } = await supabase
     .from('Log')
     .select('*')
     .order('createdAt', { ascending: false })
     .limit(100)
 
-  if (error) {
-    console.error(error)
-    return []
-  }
-
   const map: any = {}
 
   SERVICES.forEach((s) => {
-    map[s] = {
-      name: s,
-      requests: 0,
-      errors: 0,
-      latency: 0
-    }
+    map[s] = { name: s, requests: 0, errors: 0, latency: 0 }
   })
 
   for (const l of logs || []) {
@@ -40,11 +30,13 @@ export default defineEventHandler(async () => {
     s.requests++
     s.latency += l.latency
 
-    // 🔥 ERROR DETECT + SEND TO CLOUDWATCH
-    if (l.status === "Down" || l.status >= 400) {
+    if (l.status === "Down") {
       s.errors++
 
-      await sendLog(`${l.service} is DOWN at ${l.createdAt}`)
+      // ❗ only send few logs (avoid spam)
+      if (s.errors < 3) {
+        await sendLog(`${l.service} DOWN at ${l.createdAt}`)
+      }
     }
   }
 
@@ -56,13 +48,10 @@ export default defineEventHandler(async () => {
       : 0
 
     let status = "Healthy"
-    if (s.errors > 2) status = "Down"
+
+    if (s.errors >= s.requests * 0.5) status = "Down"
     else if (s.errors > 0) status = "Degraded"
 
-    return {
-      ...s,
-      latency: avgLatency,
-      status
-    }
+    return { ...s, latency: avgLatency, status }
   })
 })
