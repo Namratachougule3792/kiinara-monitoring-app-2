@@ -2,9 +2,8 @@ export default defineNuxtConfig({
   modules: ['@nuxtjs/tailwindcss'],
 
   runtimeConfig: {
-    awsAccessKeyId: process.env.MY_AWS_ACCESS_KEY_ID,
-    awsSecretAccessKey: process.env.MY_AWS_SECRET_ACCESS_KEY,
-    awsRegion: process.env.MY_AWS_REGION,
+    SUPABASE_URL: process.env.SUPABASE_URL,
+    SUPABASE_KEY: process.env.SUPABASE_KEY,
 
     public: {
       dummyApi: process.env.DUMMY_API
