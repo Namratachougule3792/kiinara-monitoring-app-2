@@ -1,19 +1,22 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 
-const data = ref([])
+const totalCost = ref(0)
+const totalRequests = ref(0)
+const services = ref([])
 
 onMounted(async () => {
-  data.value = await $fetch('/api/metrics')
+  try {
+    const data = await $fetch('/api/billing')
+
+    totalCost.value = data.totalCost
+    totalRequests.value = data.totalRequests
+    services.value = data.services
+
+  } catch (err) {
+    console.error("Billing fetch error:", err)
+  }
 })
-
-const totalCost = computed(() =>
-  data.value.reduce((a, b) => a + b.cost, 0)
-)
-
-const totalReq = computed(() =>
-  data.value.reduce((a, b) => a + b.requests, 0)
-)
 </script>
 
 <template>
@@ -21,11 +24,15 @@ const totalReq = computed(() =>
 
 <h1 class="text-3xl mb-6">Billing</h1>
 
-<p>Total Cost: ₹{{ totalCost.toFixed(2) }}</p>
-<p>Total Requests: {{ totalReq }}</p>
+<p>Total Cost: ₹{{ totalCost }}</p>
+<p>Total Requests: {{ totalRequests }}</p>
 
-<div v-for="s in data" :key="s.service" class="mt-4">
-{{ s.service }} - {{ s.requests }} req - ₹{{ s.cost.toFixed(2) }}
+<div class="mt-6 space-y-3">
+  <div v-for="s in services" :key="s.service" class="bg-[#1e293b] p-4 rounded">
+    <p class="font-bold">{{ s.service }}</p>
+    <p>Requests: {{ s.requests }}</p>
+    <p>Cost: ₹{{ s.cost }}</p>
+  </div>
 </div>
 
 </div>
