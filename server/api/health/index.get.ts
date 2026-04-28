@@ -1,46 +1,44 @@
 import { createClient } from '@supabase/supabase-js'
 
-const SERVICES = ["Admissions", "Attendance", "Billing", "Identity"]
+const SERVICES = ['Admissions', 'Attendance', 'Billing', 'Identity']
 
 export default defineEventHandler(async () => {
   const config = useRuntimeConfig()
+  const supabase = createClient(config.supabaseUrl, config.supabaseKey)
 
-  const supabase = createClient(
-    config.public.supabaseUrl,
-    config.public.supabaseKey
-  )
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
 
-  const { data: logs } = await supabase
-    .from('Log')
+  const { data: logs, error } = await supabase
+    .from('logs')
     .select('*')
-    .order('createdAt', { ascending: false })
-    .limit(100)
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
 
-  const map: any = {}
+  if (error) {
+    console.error('Supabase health error:', error)
+    return SERVICES.map(name => ({ name, status: 'Unknown', requests: 0, errors: 0, latency: 0 }))
+  }
 
-  SERVICES.forEach(s => {
-    map[s] = { name: s, requests: 0, errors: 0, latency: 0 }
-  })
+  const map: Record<string, { requests: number; errors: number; totalLatency: number }> = {}
+  SERVICES.forEach(s => { map[s] = { requests: 0, errors: 0, totalLatency: 0 } })
 
-  logs?.forEach(l => {
+  ;(logs || []).forEach((l: any) => {
     const s = map[l.service]
     if (!s) return
-
     s.requests++
-    s.latency += l.latency
-
+    s.totalLatency += l.latency || 0
     if (l.status >= 400) s.errors++
   })
 
   return SERVICES.map(name => {
     const s = map[name]
+    const avgLatency = s.requests ? Math.floor(s.totalLatency / s.requests) : 0
+    const errorRate = s.requests ? s.errors / s.requests : 0
 
-    const avg = s.requests ? Math.floor(s.latency / s.requests) : 0
+    let status = 'Healthy'
+    if (errorRate >= 0.5) status = 'Down'
+    else if (errorRate > 0) status = 'Degraded'
 
-    let status = "Healthy"
-    if (s.errors >= 3) status = "Down"
-    else if (s.errors >= 1) status = "Degraded"
-
-    return { ...s, latency: avg, status }
+    return { name, status, requests: s.requests, errors: s.errors, latency: avgLatency }
   })
 })

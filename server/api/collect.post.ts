@@ -1,27 +1,43 @@
 import { createClient } from '@supabase/supabase-js'
+import { sendToCloudWatch } from '../utils/cloudwatch'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
   const config = useRuntimeConfig()
 
-  const supabase = createClient(
-    config.public.supabaseUrl,
-    config.public.supabaseKey
+  const { school, service, status, latency } = body
+
+  if (!school || !service || status === undefined) {
+    return { error: 'Missing required fields: school, service, status' }
+  }
+
+  const supabase = createClient(config.supabaseUrl, config.supabaseKey)
+
+  // Save school name so it appears in dropdowns
+  await supabase.from('schools').upsert(
+    { name: school },
+    { onConflict: 'name', ignoreDuplicates: true }
   )
 
-  const { error } = await supabase.from('Log').insert([
-    {
-      service: body.service,
-      school: body.school, // IMPORTANT
-      latency: body.latency,
-      status: body.status, //  200 / 500
-      createdAt: new Date()
-    }
-  ])
+  // Save log event
+  const { error: logError } = await supabase.from('logs').insert([{
+    school,
+    service,
+    status,
+    latency: latency || 0,
+    created_at: new Date().toISOString()
+  }])
 
-  if (error) {
-    return { error: error.message }
+  if (logError) {
+    console.error('Supabase insert error:', logError)
+    return { error: logError.message }
   }
+
+  // Push to CloudWatch (non-blocking)
+  sendToCloudWatch(JSON.stringify({
+    school, service, status, latency,
+    timestamp: new Date().toISOString()
+  })).catch(err => console.error('CloudWatch error (non-fatal):', err.message))
 
   return { success: true }
 })
