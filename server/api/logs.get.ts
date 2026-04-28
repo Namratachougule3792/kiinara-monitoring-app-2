@@ -4,8 +4,8 @@ export default defineEventHandler(async () => {
   const config = useRuntimeConfig()
 
   const supabase = createClient(
-    config.SUPABASE_URL,
-    config.SUPABASE_KEY
+    config.supabaseUrl,
+    config.supabaseKey
   )
 
   const { data, error } = await supabase
@@ -15,8 +15,7 @@ export default defineEventHandler(async () => {
     .limit(100)
 
   if (error) {
-    console.error("Supabase error:", error)
-    return []
+    return { error: error.message }
   }
 
   return data
