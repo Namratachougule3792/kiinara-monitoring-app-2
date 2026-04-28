@@ -8,36 +8,35 @@ export default defineEventHandler(async (event) => {
   const { school, service, status, latency } = body
 
   if (!school || !service || status === undefined) {
-    return { error: 'Missing required fields: school, service, status' }
+    return { error: 'Missing required fields' }
   }
 
   const supabase = createClient(config.supabaseUrl, config.supabaseKey)
 
-  // Save school name so it appears in dropdowns
+  // ✅ upsert school
   await supabase.from('schools').upsert(
     { name: school },
-    { onConflict: 'name', ignoreDuplicates: true }
+    { onConflict: 'name' }
   )
 
-  // Save log event
-  const { error: logError } = await supabase.from('logs').insert([{
+  // ✅ store numeric status
+  const { error } = await supabase.from('logs').insert([{
     school,
     service,
-    status,
+    status, // <-- keep 200 / 500
     latency: latency || 0,
     created_at: new Date().toISOString()
   }])
 
-  if (logError) {
-    console.error('Supabase insert error:', logError)
-    return { error: logError.message }
+  if (error) {
+    console.error(error)
+    return { error: error.message }
   }
 
-  // Push to CloudWatch (non-blocking)
+  // cloudwatch (non blocking)
   sendToCloudWatch(JSON.stringify({
-    school, service, status, latency,
-    timestamp: new Date().toISOString()
-  })).catch(err => console.error('CloudWatch error (non-fatal):', err.message))
+    school, service, status, latency
+  })).catch(() => {})
 
   return { success: true }
 })

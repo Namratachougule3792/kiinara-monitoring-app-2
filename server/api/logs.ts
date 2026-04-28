@@ -23,7 +23,6 @@ export default defineEventHandler(async (event) => {
 
   if (service) req = req.eq('service', service)
   if (school && school !== 'All') req = req.eq('school', school)
-
   const { data, error } = await req
 
   if (error) {
