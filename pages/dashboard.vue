@@ -1,5 +1,8 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
 
 const services = ref([])
 let intervalId
@@ -27,8 +30,9 @@ const color = (s) =>
 const rate = (s) =>
   s.requests ? ((s.errors / s.requests) * 100).toFixed(2) : 0
 
+//  REAL LOG PAGE NAVIGATION
 const openLogs = (service) => {
-  alert(`Logs for ${service} (CloudWatch later connect karu)`)
+  router.push(`/logs?service=${service}`)
 }
 </script>
 
@@ -53,10 +57,10 @@ const openLogs = (service) => {
 
 <p class="text-red-400">Error Rate: {{ rate(s) }}%</p>
 
-<!-- ✅ VIEW LOG BUTTON -->
+<!--  BUTTON -->
 <button 
   v-if="s.status !== 'Healthy'"
-  class="mt-3 px-3 py-1 bg-red-600 rounded"
+  class="mt-3 px-3 py-1 bg-red-600 rounded hover:bg-red-700"
   @click="openLogs(s.name)"
 >
   View Logs
