@@ -1,16 +1,21 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 
+const overall = ref('Loading...')
 const services = ref([])
 
 onMounted(async () => {
-  services.value = await $fetch('/api/health')
-})
+  try {
+    const health = await $fetch('/api/health')
+    const status = await $fetch('/api/status')
 
-const overall = computed(() => {
-  if (services.value.some(s => s.status === "Down")) return "Down"
-  if (services.value.some(s => s.status === "Degraded")) return "Degraded"
-  return "Healthy"
+    services.value = health
+    overall.value = status.overall
+
+  } catch (err) {
+    console.error("Status error:", err)
+    overall.value = 'Error'
+  }
 })
 </script>
 
@@ -20,11 +25,16 @@ const overall = computed(() => {
 <h1 class="text-3xl mb-4">Platform Status</h1>
 
 <h2 class="mb-6">
-Overall: {{ overall }}
+Overall: 
+<span :class="overall === 'Healthy' ? 'text-green-400' : 'text-red-400'">
+  {{ overall }}
+</span>
 </h2>
 
-<div v-for="s in services" :key="s.name">
-{{ s.name }} - {{ s.status }}
+<div class="space-y-2">
+  <div v-for="s in services" :key="s.name" class="bg-[#1e293b] p-3 rounded">
+    {{ s.name }} - {{ s.status }}
+  </div>
 </div>
 
 </div>
