@@ -4,8 +4,47 @@ import { ref, onMounted, onUnmounted } from 'vue'
 const services = ref([])
 let intervalId
 
+const transform = (logs) => {
+  const map = {}
+
+  logs.forEach(l => {
+    if (!map[l.service]) {
+      map[l.service] = {
+        name: l.service,
+        requests: 0,
+        errors: 0,
+        latency: 0,
+        status: "Healthy"
+      }
+    }
+
+    map[l.service].requests++
+    map[l.service].latency += l.latency
+
+    if (l.status === "Down") {
+      map[l.service].errors++
+    }
+  })
+
+  return Object.values(map).map(s => {
+    const avgLatency = Math.round(s.latency / s.requests)
+    const errorRate = s.errors / s.requests
+
+    let status = "Healthy"
+    if (errorRate > 0.3) status = "Down"
+    else if (errorRate > 0.1) status = "Degraded"
+
+    return {
+      ...s,
+      latency: avgLatency,
+      status
+    }
+  })
+}
+
 const load = async () => {
-  services.value = await $fetch('/api/health')
+  const logs = await $fetch('/api/logs')
+  services.value = transform(logs)
 }
 
 onMounted(() => {
