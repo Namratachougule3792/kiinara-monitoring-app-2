@@ -5,8 +5,8 @@ import { useRoute } from 'vue-router'
 const route = useRoute()
 const logs = ref([])
 const loading = ref(true)
-const source = ref((route.query.source as string) || 'supabase')
-const selectedService = ref((route.query.service as string) || '')
+const source = ref(String(route.query.source || 'supabase'))
+const selectedService = ref(String(route.query.service || ''))
 const selectedSchool = ref('')
 const schools = ref([])
 
@@ -50,7 +50,6 @@ const formatTime = (ts) => ts ? new Date(ts).toLocaleString() : '-'
 
   <div class="flex flex-wrap gap-3 mb-6">
 
-    <!-- Source toggle -->
     <div class="flex rounded-lg overflow-hidden border border-gray-700">
       <button
         :class="source === 'supabase' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'"
@@ -64,13 +63,11 @@ const formatTime = (ts) => ts ? new Date(ts).toLocaleString() : '-'
       >☁️ CloudWatch</button>
     </div>
 
-    <!-- Service filter -->
     <select v-model="selectedService" class="bg-gray-800 border border-gray-700 p-2 rounded-lg text-sm text-white">
       <option value="">All Services</option>
       <option v-for="s in SERVICES" :key="s" :value="s">{{ s }}</option>
     </select>
 
-    <!-- School filter (Supabase only) -->
     <select
       v-if="source === 'supabase'"
       v-model="selectedSchool"
