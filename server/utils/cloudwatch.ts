@@ -4,13 +4,13 @@ const LOG_GROUP = 'kiinara-app-logs'
 const LOG_STREAM = 'app-stream'
 
 function getEnv() {
+  const config = useRuntimeConfig()
   return {
-    region: process.env.AWS_REGION || 'ap-south-1',
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || ''
+    region: config.awsRegion as string || 'ap-south-1',
+    accessKeyId: config.awsAccessKeyId as string || '',
+    secretAccessKey: config.awsSecretAccessKey as string || ''
   }
 }
-
 function sha256hex(data: string): string {
   return createHash('sha256').update(data, 'utf8').digest('hex')
 }
