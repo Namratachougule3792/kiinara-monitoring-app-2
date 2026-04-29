@@ -23,31 +23,34 @@ const statusIcon = (s) => s === 'Healthy' ? '🟢' : s === 'Degraded' ? '🟡' :
 const statusBg = (s) =>
   s === 'Healthy' ? 'border-green-600' :
   s === 'Degraded' ? 'border-yellow-500' : 'border-red-600'
+const statusBadge = (s) =>
+  s === 'Healthy' ? 'bg-green-700 text-white' :
+  s === 'Degraded' ? 'bg-yellow-600 text-black' : 'bg-red-700 text-white'
 </script>
 
 <template>
 <div class="p-8 text-white bg-[#020617] min-h-screen">
 
   <h1 class="text-3xl font-bold mb-2">🌐 Platform Status</h1>
-  <p class="text-gray-400 text-sm mb-8">Kiinara OS — Public Health Page</p>
+  <p class="text-gray-400 text-sm mb-8">Kiinara OS — Public Health Page · Last 7 days</p>
 
   <div
-    :class="overall === 'Healthy' ? 'bg-green-900 border-green-600' : overall === 'Degraded' ? 'bg-yellow-900 border-yellow-600' : 'bg-red-900 border-red-600'"
+    :class="overall === 'Healthy' ? 'bg-green-900/40 border-green-600' : overall === 'Degraded' ? 'bg-yellow-900/40 border-yellow-600' : 'bg-red-900/40 border-red-600'"
     class="border rounded-xl p-5 mb-8 flex items-center gap-4"
   >
     <span class="text-4xl">{{ statusIcon(overall) }}</span>
     <div>
       <p class="font-bold text-xl">
-        {{ overall === 'Healthy' ? 'All Systems Operational' : overall === 'Degraded' ? 'Partial Degradation' : 'Major Outage' }}
+        {{ overall === 'Healthy' ? 'All Systems Operational' :
+           overall === 'Degraded' ? 'Partial Degradation' : 'Major Outage' }}
       </p>
-      <p class="text-sm opacity-70">Overall: <b>{{ overall }}</b></p>
+      <p class="text-sm text-gray-400">Overall status: <b>{{ overall }}</b></p>
     </div>
   </div>
 
   <div v-if="loading" class="text-gray-400">Loading...</div>
 
   <template v-else>
-
     <h2 class="text-xl font-semibold mb-4">Services</h2>
     <div class="space-y-3 mb-10">
       <div
@@ -57,17 +60,16 @@ const statusBg = (s) =>
       >
         <div>
           <p class="font-semibold">{{ statusIcon(s.status) }} {{ s.name }}</p>
-          <p class="text-xs text-gray-400">Uptime: {{ s.uptime }}% · Avg latency: {{ s.avgLatency }}ms</p>
+          <p class="text-xs text-gray-400 mt-0.5">Uptime: {{ s.uptime }}% · Avg latency: {{ s.avgLatency }}ms</p>
         </div>
-        <span
-          :class="s.status === 'Healthy' ? 'bg-green-700' : s.status === 'Degraded' ? 'bg-yellow-700 text-black' : 'bg-red-700'"
-          class="px-3 py-1 rounded-full text-xs font-bold"
-        >{{ s.status }}</span>
+        <span :class="['px-3 py-1 rounded-full text-xs font-bold', statusBadge(s.status)]">
+          {{ s.status }}
+        </span>
       </div>
     </div>
 
     <h2 class="text-xl font-semibold mb-4">Incident History</h2>
-    <div v-if="incidents.length === 0" class="text-gray-500 bg-[#1e293b] p-6 rounded-xl text-center">
+    <div v-if="incidents.length === 0" class="bg-[#1e293b] p-6 rounded-xl text-center text-gray-500">
       🎉 No incidents in the past 7 days
     </div>
     <div v-else class="space-y-3">
@@ -92,7 +94,6 @@ const statusBg = (s) =>
         </div>
       </div>
     </div>
-
   </template>
 
 </div>

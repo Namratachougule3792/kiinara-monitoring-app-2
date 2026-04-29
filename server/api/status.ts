@@ -15,27 +15,25 @@ export default defineEventHandler(async () => {
   const allLogs = logs || []
   const SERVICES = ['Admissions', 'Attendance', 'Billing', 'Identity']
   const serviceMap: Record<string, { total: number; errors: number; latency: number }> = {}
-
   SERVICES.forEach(s => { serviceMap[s] = { total: 0, errors: 0, latency: 0 } })
 
   allLogs.forEach((l: any) => {
     const s = serviceMap[l.service]
     if (!s) return
     s.total++
-    s.latency += l.latency || 0
-    if (l.status >= 400) s.errors++
+    s.latency += Number(l.latency) || 0
+    if (Number(l.status) >= 400) s.errors++
   })
 
   const services = SERVICES.map(name => {
     const s = serviceMap[name]
     const errorRate = s.total > 0 ? s.errors / s.total : 0
     let status = 'Healthy'
-    if (errorRate >= 0.5) status = 'Down'
-    else if (errorRate > 0) status = 'Degraded'
+    if (s.total > 0 && errorRate >= 0.5) status = 'Down'
+    else if (s.total > 0 && errorRate > 0) status = 'Degraded'
 
     return {
-      name,
-      status,
+      name, status,
       uptime: s.total > 0 ? +((1 - errorRate) * 100).toFixed(1) : 100,
       avgLatency: s.total > 0 ? Math.floor(s.latency / s.total) : 0
     }
@@ -46,7 +44,7 @@ export default defineEventHandler(async () => {
   else if (services.some(s => s.status === 'Degraded')) overall = 'Degraded'
 
   const incidents = allLogs
-    .filter((l: any) => l.status >= 400)
+    .filter((l: any) => Number(l.status) >= 400)
     .slice(0, 50)
     .map((l: any) => ({
       id: l.id,

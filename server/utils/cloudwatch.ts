@@ -10,14 +10,13 @@ import {
 export const LOG_GROUP = 'kiinara-app-logs'
 export const LOG_STREAM = 'app-stream'
 
-const getClient = () =>
-  new CloudWatchLogsClient({
-    region: process.env.AWS_REGION || 'ap-south-1',
-    credentials: {
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!
-    }
-  })
+const getClient = () => new CloudWatchLogsClient({
+  region: process.env.AWS_REGION || 'ap-south-1',
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!
+  }
+})
 
 async function ensureLogStream(client: CloudWatchLogsClient) {
   try {
@@ -32,21 +31,21 @@ async function ensureLogStream(client: CloudWatchLogsClient) {
 }
 
 async function getSequenceToken(client: CloudWatchLogsClient): Promise<string | undefined> {
-  const res = await client.send(new DescribeLogStreamsCommand({
-    logGroupName: LOG_GROUP,
-    logStreamNamePrefix: LOG_STREAM
-  }))
-  return res.logStreams?.find(s => s.logStreamName === LOG_STREAM)?.uploadSequenceToken
+  try {
+    const res = await client.send(new DescribeLogStreamsCommand({
+      logGroupName: LOG_GROUP,
+      logStreamNamePrefix: LOG_STREAM
+    }))
+    return res.logStreams?.find(s => s.logStreamName === LOG_STREAM)?.uploadSequenceToken
+  } catch (_) {
+    return undefined
+  }
 }
 
 export async function sendToCloudWatch(message: string): Promise<void> {
   const client = getClient()
   await ensureLogStream(client)
-
-  let sequenceToken: string | undefined
-  try {
-    sequenceToken = await getSequenceToken(client)
-  } catch (_) {}
+  const sequenceToken = await getSequenceToken(client)
 
   const params: any = {
     logGroupName: LOG_GROUP,

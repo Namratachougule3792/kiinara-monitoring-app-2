@@ -5,8 +5,8 @@ import { useRoute } from 'vue-router'
 const route = useRoute()
 const logs = ref([])
 const loading = ref(true)
-const source = ref('supabase')
-const selectedService = ref(route.query.service || '')
+const source = ref((route.query.source as string) || 'supabase')
+const selectedService = ref((route.query.service as string) || '')
 const selectedSchool = ref('')
 const schools = ref([])
 
@@ -28,16 +28,18 @@ const load = async () => {
 }
 
 const loadSchools = async () => {
-  try { schools.value = await $fetch('/api/schools') } catch (e) { schools.value = [] }
+  try { schools.value = await $fetch('/api/schools') } catch { schools.value = [] }
 }
 
 onMounted(() => { loadSchools(); load() })
 watch([source, selectedService, selectedSchool], load)
 
 const statusLabel = (status) =>
-  status === 200 ? '✅ 200 OK' : status === 500 ? '❌ 500 Error' : `${status}`
+  Number(status) === 200 ? '✅ 200 OK' :
+  Number(status) === 500 ? '❌ 500 Error' : `${status}`
 
-const statusColor = (status) => status >= 400 ? 'text-red-400' : 'text-green-400'
+const statusColor = (status) => Number(status) >= 400 ? 'text-red-400' : 'text-green-400'
+const borderColor = (status) => Number(status) >= 400 ? 'border-red-500' : 'border-green-500'
 const formatTime = (ts) => ts ? new Date(ts).toLocaleString() : '-'
 </script>
 
@@ -48,67 +50,79 @@ const formatTime = (ts) => ts ? new Date(ts).toLocaleString() : '-'
 
   <div class="flex flex-wrap gap-3 mb-6">
 
-    <div class="flex rounded overflow-hidden border border-gray-700">
+    <!-- Source toggle -->
+    <div class="flex rounded-lg overflow-hidden border border-gray-700">
       <button
-        :class="source === 'supabase' ? 'bg-blue-600' : 'bg-gray-800 text-gray-400'"
-        class="px-4 py-2 text-sm"
+        :class="source === 'supabase' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'"
+        class="px-4 py-2 text-sm font-medium transition-colors"
         @click="source = 'supabase'"
-      >Supabase</button>
+      >🗄️ Supabase</button>
       <button
-        :class="source === 'cloudwatch' ? 'bg-orange-600' : 'bg-gray-800 text-gray-400'"
-        class="px-4 py-2 text-sm"
+        :class="source === 'cloudwatch' ? 'bg-orange-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'"
+        class="px-4 py-2 text-sm font-medium transition-colors"
         @click="source = 'cloudwatch'"
       >☁️ CloudWatch</button>
     </div>
 
-    <select v-model="selectedService" class="bg-gray-800 border border-gray-700 p-2 rounded text-sm">
+    <!-- Service filter -->
+    <select v-model="selectedService" class="bg-gray-800 border border-gray-700 p-2 rounded-lg text-sm text-white">
       <option value="">All Services</option>
       <option v-for="s in SERVICES" :key="s" :value="s">{{ s }}</option>
     </select>
 
+    <!-- School filter (Supabase only) -->
     <select
       v-if="source === 'supabase'"
       v-model="selectedSchool"
-      class="bg-gray-800 border border-gray-700 p-2 rounded text-sm"
+      class="bg-gray-800 border border-gray-700 p-2 rounded-lg text-sm text-white"
     >
       <option value="">All Schools</option>
       <option v-for="s in schools" :key="s" :value="s">{{ s }}</option>
     </select>
 
+    <button
+      @click="load"
+      class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm"
+    >🔄 Refresh</button>
+
   </div>
 
-  <div v-if="loading" class="text-gray-400">Loading logs...</div>
+  <div v-if="loading" class="text-gray-400 flex items-center gap-2">
+    <div class="animate-spin w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full"/>
+    Loading logs...
+  </div>
 
-  <div v-else-if="logs.length === 0" class="text-gray-400 text-center mt-20">
-    <p class="text-xl">No logs found</p>
-    <p class="text-sm mt-2">Generate events from the Dummy App</p>
+  <div v-else-if="logs.length === 0" class="text-center mt-20">
+    <p class="text-xl text-gray-400">No logs found</p>
+    <p class="text-sm text-gray-500 mt-2">
+      {{ source === 'cloudwatch' ? 'No CloudWatch logs yet — generate events from the Dummy App first' : 'Generate events from the Dummy App to see logs here' }}
+    </p>
   </div>
 
   <div v-else class="space-y-3">
     <div
       v-for="(l, i) in logs"
       :key="l.id || i"
-      class="bg-[#1e293b] rounded-lg p-4 border-l-4"
-      :class="(l.status >= 400) ? 'border-red-500' : 'border-green-500'"
+      :class="['bg-[#1e293b] rounded-xl p-4 border-l-4', borderColor(l.status)]"
     >
       <div class="flex justify-between items-start">
         <div>
-          <span class="font-semibold text-white">{{ l.service }}</span>
+          <span class="font-semibold text-white text-base">{{ l.service }}</span>
           <span v-if="l.school" class="ml-2 text-gray-400 text-sm">@ {{ l.school }}</span>
         </div>
-        <span :class="statusColor(l.status)" class="text-sm font-mono font-bold">
+        <span :class="['text-sm font-mono font-bold', statusColor(l.status)]">
           {{ statusLabel(l.status) }}
         </span>
       </div>
-      <div class="flex gap-4 mt-2 text-sm text-gray-400">
+      <div class="flex gap-6 mt-2 text-sm text-gray-400">
         <span>⚡ {{ l.latency }} ms</span>
         <span>🕐 {{ formatTime(l.created_at || l.timestamp) }}</span>
       </div>
     </div>
   </div>
 
-  <p v-if="!loading && logs.length > 0" class="mt-6 text-sm text-gray-500">
-    Showing {{ logs.length }} entries from {{ source === 'cloudwatch' ? 'CloudWatch' : 'Supabase' }}
+  <p v-if="!loading && logs.length > 0" class="mt-6 text-sm text-gray-500 text-center">
+    Showing {{ logs.length }} entries from {{ source === 'cloudwatch' ? '☁️ CloudWatch' : '🗄️ Supabase' }}
   </p>
 
 </div>

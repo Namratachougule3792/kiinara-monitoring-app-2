@@ -2,6 +2,7 @@ export default defineNuxtConfig({
   modules: ['@nuxtjs/tailwindcss'],
 
   runtimeConfig: {
+    // SERVER SIDE ONLY — never sent to browser
     supabaseUrl: process.env.SUPABASE_URL,
     supabaseKey: process.env.SUPABASE_KEY,
     awsAccessKeyId: process.env.AWS_ACCESS_KEY_ID,
@@ -13,7 +14,18 @@ export default defineNuxtConfig({
   },
 
   nitro: {
-    preset: 'aws_amplify'
+    preset: 'aws_amplify',
+    // THIS IS THE CORS FIX — allows dummy app to POST to /api/collect
+    routeRules: {
+      '/api/**': {
+        cors: true,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type,Authorization,Accept'
+        }
+      }
+    }
   },
 
   compatibilityDate: '2025-01-01'

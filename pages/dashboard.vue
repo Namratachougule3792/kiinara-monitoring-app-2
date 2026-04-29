@@ -23,7 +23,6 @@ onMounted(() => {
   load()
   intervalId = setInterval(load, 5000)
 })
-
 onUnmounted(() => clearInterval(intervalId))
 
 const statusColor = (s) =>
@@ -34,10 +33,10 @@ const borderColor = (s) =>
   s === 'Healthy' ? 'border-green-600' :
   s === 'Degraded' ? 'border-yellow-500' : 'border-red-600'
 
-const rate = (s) =>
-  s.requests ? ((s.errors / s.requests) * 100).toFixed(1) : '0.0'
+const rate = (s) => s.requests ? ((s.errors / s.requests) * 100).toFixed(1) : '0.0'
 
-const openLogs = (service) => router.push(`/logs?service=${service}`)
+// Clicking View Logs opens the Logs page filtered to CloudWatch + that service
+const openLogs = (service) => router.push(`/logs?service=${service}&source=cloudwatch`)
 </script>
 
 <template>
@@ -75,18 +74,20 @@ const openLogs = (service) => router.push(`/logs?service=${service}`)
         <p>📉 Error Rate: <span class="text-red-400 font-medium">{{ rate(s) }}%</span></p>
       </div>
 
+      <!-- View Logs button: only shown when Degraded or Down AND there are requests -->
       <button
-        v-if="s.status !== 'Healthy'"
-        class="mt-4 px-4 py-2 bg-red-700 hover:bg-red-600 rounded text-sm font-medium"
+        v-if="s.status !== 'Healthy' && s.requests > 0"
+        class="mt-4 px-4 py-2 bg-red-700 hover:bg-red-600 rounded text-sm font-medium transition-colors"
         @click="openLogs(s.name)"
       >
-        🔍 View Logs
+        🔍 View CloudWatch Logs
       </button>
     </div>
   </div>
 
-  <div v-if="!loading && services.length === 0" class="text-center text-gray-400 mt-20">
-    <p class="text-xl">No data yet — trigger events from the Dummy App</p>
+  <div v-if="!loading && services.every(s => s.requests === 0)" class="text-center text-gray-500 mt-20">
+    <p class="text-xl">No activity yet</p>
+    <p class="text-sm mt-2">Go to the Dummy App → enter a school name → click Generate</p>
   </div>
 
 </div>

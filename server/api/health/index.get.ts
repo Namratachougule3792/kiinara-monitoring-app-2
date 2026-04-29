@@ -15,8 +15,10 @@ export default defineEventHandler(async () => {
     .order('created_at', { ascending: false })
 
   if (error) {
-    console.error('Supabase health error:', error)
-    return SERVICES.map(name => ({ name, status: 'Unknown', requests: 0, errors: 0, latency: 0 }))
+    console.error('Health fetch error:', error.message)
+    return SERVICES.map(name => ({
+      name, status: 'Healthy', requests: 0, errors: 0, latency: 0
+    }))
   }
 
   const map: Record<string, { requests: number; errors: number; totalLatency: number }> = {}
@@ -26,8 +28,8 @@ export default defineEventHandler(async () => {
     const s = map[l.service]
     if (!s) return
     s.requests++
-    s.totalLatency += l.latency || 0
-    if (l.status >= 400) s.errors++
+    s.totalLatency += Number(l.latency) || 0
+    if (Number(l.status) >= 400) s.errors++
   })
 
   return SERVICES.map(name => {
@@ -36,8 +38,8 @@ export default defineEventHandler(async () => {
     const errorRate = s.requests ? s.errors / s.requests : 0
 
     let status = 'Healthy'
-    if (errorRate >= 0.5) status = 'Down'
-    else if (errorRate > 0) status = 'Degraded'
+    if (s.requests > 0 && errorRate >= 0.5) status = 'Down'
+    else if (s.requests > 0 && errorRate > 0) status = 'Degraded'
 
     return { name, status, requests: s.requests, errors: s.errors, latency: avgLatency }
   })
