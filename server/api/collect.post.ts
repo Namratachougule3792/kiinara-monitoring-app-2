@@ -1,72 +1,83 @@
-import { createClient } from '@supabase/supabase-js'
-import { sendToCloudWatch } from '../utils/cloudwatch'
-
 export default defineEventHandler(async (event) => {
-  // Handle CORS preflight
-  if (event.node.req.method === 'OPTIONS') {
-    setResponseHeaders(event, {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Accept'
-    })
-    event.node.res.statusCode = 204
-    event.node.res.end()
-    return
-  }
-
-  setResponseHeaders(event, {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Accept'
-  })
-
-  let body: any
-  try {
-    body = await readBody(event)
-  } catch (e) {
-    return { error: 'Invalid request body' }
-  }
-
+  const body = await readBody(event)
   const config = useRuntimeConfig()
+
   const { school, service, status, latency } = body
 
   if (!school || !service || status === undefined) {
     return { error: 'Missing required fields: school, service, status' }
   }
 
-  const supabase = createClient(config.supabaseUrl, config.supabaseKey)
+  const supabaseUrl = config.supabaseUrl
+  const supabaseKey = config.supabaseKey
 
-  // 1. Save school name
-  const { error: schoolError } = await supabase
-    .from('schools')
-    .upsert({ name: school.trim() }, { onConflict: 'name', ignoreDuplicates: true })
-
-  if (schoolError) {
-    console.error('School upsert error:', schoolError.message)
+  if (!supabaseUrl || !supabaseKey) {
+    return { error: 'Missing Supabase credentials in env vars' }
   }
 
-  // 2. Save log
-  const { error: logError } = await supabase.from('logs').insert([{
-    school: school.trim(),
-    service,
-    status: Number(status),
-    latency: Number(latency) || 0,
-    created_at: new Date().toISOString()
-  }])
-
-  if (logError) {
-    console.error('Log insert error:', logError.message)
-    return { error: logError.message }
+  const headers = {
+    'Content-Type': 'application/json',
+    'apikey': supabaseKey,
+    'Authorization': `Bearer ${supabaseKey}`
   }
 
-  // 3. Push to CloudWatch (fire and forget)
-  sendToCloudWatch(JSON.stringify({
-    school: school.trim(),
-    service,
-    status: Number(status),
-    latency: Number(latency) || 0,
-    timestamp: new Date().toISOString()
-  })).catch(err => console.error('CloudWatch (non-fatal):', err.message))
+  // Step 1: Insert school (ignore if already exists)
+  try {
+    const schoolRes = await fetch(`${supabaseUrl}/rest/v1/schools`, {
+      method: 'POST',
+      headers: {
+        ...headers,
+        'Prefer': 'resolution=ignore-duplicates'
+      },
+      body: JSON.stringify({ name: school.trim() })
+    })
+    // 200, 201, 204 are all fine — just log if something unexpected
+    if (!schoolRes.ok && schoolRes.status !== 409) {
+      const txt = await schoolRes.text()
+      console.error('School insert warning (non-fatal):', schoolRes.status, txt)
+    }
+  } catch (err: any) {
+    console.error('School insert exception (non-fatal):', err.message)
+  }
+
+  // Step 2: Insert log
+  try {
+    const logRes = await fetch(`${supabaseUrl}/rest/v1/logs`, {
+      method: 'POST',
+      headers: {
+        ...headers,
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({
+        school: school.trim(),
+        service,
+        status,
+        latency: latency || 0,
+        created_at: new Date().toISOString()
+      })
+    })
+
+    if (!logRes.ok) {
+      const txt = await logRes.text()
+      console.error('Log insert failed:', logRes.status, txt)
+      return { error: `Log insert failed (${logRes.status}): ${txt}` }
+    }
+  } catch (err: any) {
+    console.error('Log insert exception:', err.message)
+    return { error: err.message }
+  }
+
+  // Step 3: Push to CloudWatch (completely non-blocking, never fails the request)
+  try {
+    const { sendToCloudWatch } = await import('../utils/cloudwatch')
+    sendToCloudWatch(JSON.stringify({
+      school: school.trim(),
+      service,
+      status,
+      latency: latency || 0,
+      timestamp: new Date().toISOString()
+    })).catch((e: any) => console.error('CloudWatch push failed (non-fatal):', e.message))
+  } catch (_) {}
 
   return { success: true }
 })
