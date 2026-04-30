@@ -26,7 +26,7 @@ onMounted(async () => {
     console.log('services count:', services.value.length)
     console.log('incidents count:', incidents.value.length)
 
-  } catch (err: any) {
+  } catch (err) {
     console.error('Status page error:', err)
     error.value = err.message || 'Failed to load status'
     overall.value = 'Unknown'
@@ -58,8 +58,9 @@ const badgeClass = (s) =>
   s === 'Degraded' ? 'bg-yellow-900 text-yellow-300' : 'bg-red-900 text-red-300'
 
 const incidentBadge = (s) =>
-  s === 'Down' ? 'bg-red-900 text-red-300 border border-red-700'
-               : 'bg-yellow-900 text-yellow-300 border border-yellow-700'
+  s === 'Down'
+    ? 'bg-red-900 text-red-300 border border-red-700'
+    : 'bg-yellow-900 text-yellow-300 border border-yellow-700'
 
 const formatTime = (ts) => {
   if (!ts) return '-'
