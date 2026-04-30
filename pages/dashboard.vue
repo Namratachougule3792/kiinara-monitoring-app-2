@@ -5,89 +5,85 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 const services = ref([])
 const loading = ref(true)
-const lastUpdated = ref(null)
+const lastUpdated = ref('')
 let intervalId
 
 const load = async () => {
   try {
     services.value = await $fetch('/api/health')
     lastUpdated.value = new Date().toLocaleTimeString()
-  } catch (e) {
-    console.error('Health error:', e)
-  } finally {
+  } catch { } finally {
     loading.value = false
   }
 }
 
-onMounted(() => {
-  load()
-  intervalId = setInterval(load, 5000)
-})
+onMounted(() => { load(); intervalId = setInterval(load, 5000) })
 onUnmounted(() => clearInterval(intervalId))
 
-const statusColor = (s) =>
-  s === 'Healthy' ? 'bg-green-500 text-white' :
-  s === 'Degraded' ? 'bg-yellow-400 text-black' : 'bg-red-500 text-white'
-
 const borderColor = (s) =>
-  s === 'Healthy' ? 'border-green-600' :
-  s === 'Degraded' ? 'border-yellow-500' : 'border-red-600'
+  s === 'Healthy' ? 'border-green-800' :
+  s === 'Degraded' ? 'border-yellow-700' : 'border-red-800'
+
+const badgeClass = (s) =>
+  s === 'Healthy' ? 'bg-green-900 text-green-300' :
+  s === 'Degraded' ? 'bg-yellow-900 text-yellow-300' : 'bg-red-900 text-red-300'
+
+const dotClass = (s) =>
+  s === 'Healthy' ? 'bg-green-500' :
+  s === 'Degraded' ? 'bg-yellow-400' : 'bg-red-500'
 
 const rate = (s) => s.requests ? ((s.errors / s.requests) * 100).toFixed(1) : '0.0'
-
-// Clicking View Logs opens the Logs page filtered to CloudWatch + that service
-const openLogs = (service) => router.push(`/logs?service=${service}&source=cloudwatch`)
+const viewLogs = (name) => router.push(`/logs?service=${name}`)
 </script>
 
 <template>
-<div class="p-8 bg-[#020617] min-h-screen text-white">
+<div class="p-6 bg-[#020617] min-h-screen text-white">
 
   <div class="flex justify-between items-center mb-6">
-    <h1 class="text-3xl font-bold">📊 System Health</h1>
-    <div class="text-sm text-gray-400">
-      <span v-if="loading">Loading...</span>
-      <span v-else>Last updated: {{ lastUpdated }} (auto-refreshes every 5s)</span>
+    <div>
+      <h1 class="text-xl font-semibold">System Health</h1>
+      <p class="text-gray-500 text-sm mt-1">Last 24 hours · auto-refreshes every 5s</p>
     </div>
+    <p class="text-xs text-gray-600">Updated {{ lastUpdated }}</p>
   </div>
 
-  <div v-if="loading" class="grid grid-cols-2 gap-6">
-    <div v-for="i in 4" :key="i" class="bg-[#1e293b] p-6 rounded-xl animate-pulse h-40"/>
+  <!-- Loading skeleton -->
+  <div v-if="loading" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div v-for="i in 4" :key="i" class="bg-[#0f172a] border border-gray-800 rounded-lg h-36 animate-pulse"/>
   </div>
 
-  <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-6">
-    <div
-      v-for="s in services"
-      :key="s.name"
-      :class="['bg-[#1e293b] p-6 rounded-xl border-l-4', borderColor(s.status)]"
-    >
-      <div class="flex justify-between items-start mb-3">
-        <h2 class="text-xl font-semibold">{{ s.name }}</h2>
-        <span :class="['px-3 py-1 rounded-full text-xs font-bold', statusColor(s.status)]">
+  <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div v-for="s in services" :key="s.name"
+      :class="['bg-[#0f172a] border-l-4 border border-gray-800 rounded-lg p-5', borderColor(s.status)]">
+
+      <div class="flex justify-between items-start mb-4">
+        <div class="flex items-center gap-2.5">
+          <span :class="['w-2.5 h-2.5 rounded-full', dotClass(s.status)]"/>
+          <h2 class="text-base font-semibold">{{ s.name }}</h2>
+        </div>
+        <span :class="['px-2.5 py-0.5 rounded text-xs font-semibold', badgeClass(s.status)]">
           {{ s.status }}
         </span>
       </div>
 
-      <div class="grid grid-cols-2 gap-2 text-sm text-gray-300">
-        <p>📥 Requests: <span class="text-white font-medium">{{ s.requests }}</span></p>
-        <p>❌ Errors: <span class="text-red-400 font-medium">{{ s.errors }}</span></p>
-        <p>⚡ Latency: <span class="text-white font-medium">{{ s.latency }} ms</span></p>
-        <p>📉 Error Rate: <span class="text-red-400 font-medium">{{ rate(s) }}%</span></p>
+      <div class="grid grid-cols-2 gap-y-2 text-sm text-gray-400 mb-4">
+        <p>Requests <span class="text-white font-medium ml-1">{{ s.requests }}</span></p>
+        <p>Errors <span class="text-red-400 font-medium ml-1">{{ s.errors }}</span></p>
+        <p>Latency <span class="text-white font-medium ml-1">{{ s.latency }}ms</span></p>
+        <p>Error Rate <span class="text-red-400 font-medium ml-1">{{ rate(s) }}%</span></p>
       </div>
 
-      <!-- View Logs button: only shown when Degraded or Down AND there are requests -->
-      <button
-        v-if="s.status !== 'Healthy' && s.requests > 0"
-        class="mt-4 px-4 py-2 bg-red-700 hover:bg-red-600 rounded text-sm font-medium transition-colors"
-        @click="openLogs(s.name)"
-      >
-        🔍 View CloudWatch Logs
+      <button v-if="s.status !== 'Healthy'"
+        @click="viewLogs(s.name)"
+        class="w-full py-1.5 bg-red-900 hover:bg-red-800 border border-red-700 rounded text-xs font-medium text-red-300 transition-colors">
+        View CloudWatch Logs
       </button>
     </div>
   </div>
 
-  <div v-if="!loading && services.every(s => s.requests === 0)" class="text-center text-gray-500 mt-20">
-    <p class="text-xl">No activity yet</p>
-    <p class="text-sm mt-2">Go to the Dummy App → enter a school name → click Generate</p>
+  <div v-if="!loading && services.every(s => s.requests === 0)"
+    class="text-center text-gray-600 text-sm mt-16">
+    No activity yet — go to the Dummy App, enter a school name, and click Generate
   </div>
 
 </div>

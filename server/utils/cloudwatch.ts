@@ -11,6 +11,7 @@ function getEnv() {
     secretAccessKey: config.awsSecretAccessKey as string || ''
   }
 }
+
 function sha256hex(data: string): string {
   return createHash('sha256').update(data, 'utf8').digest('hex')
 }
@@ -39,36 +40,18 @@ function signRequest(opts: {
   const now = new Date()
   const amzDate = now.toISOString().replace(/[:\-]|\.\d{3}/g, '').slice(0, 15) + 'Z'
   const dateStamp = amzDate.slice(0, 8)
-
   const payloadHash = sha256hex(opts.body)
   const canonicalHeaders =
     `content-type:application/x-amz-json-1.1\n` +
     `host:${opts.host}\n` +
     `x-amz-date:${amzDate}\n` +
     `x-amz-target:${opts.target}\n`
-
   const signedHeaders = 'content-type;host;x-amz-date;x-amz-target'
-
-  const canonicalRequest = [
-    opts.method,
-    opts.path,
-    '',
-    canonicalHeaders,
-    signedHeaders,
-    payloadHash
-  ].join('\n')
-
+  const canonicalRequest = [opts.method, opts.path, '', canonicalHeaders, signedHeaders, payloadHash].join('\n')
   const credentialScope = `${dateStamp}/${opts.region}/logs/aws4_request`
-  const stringToSign = [
-    'AWS4-HMAC-SHA256',
-    amzDate,
-    credentialScope,
-    sha256hex(canonicalRequest)
-  ].join('\n')
-
+  const stringToSign = ['AWS4-HMAC-SHA256', amzDate, credentialScope, sha256hex(canonicalRequest)].join('\n')
   const signingKey = getSigningKey(opts.secretAccessKey, dateStamp, opts.region, 'logs')
   const signature = createHmac('sha256', signingKey).update(stringToSign).digest('hex')
-
   return {
     'Content-Type': 'application/x-amz-json-1.1',
     'X-Amz-Date': amzDate,
@@ -81,71 +64,40 @@ async function cwRequest(target: string, body: object): Promise<any> {
   const { region, accessKeyId, secretAccessKey } = getEnv()
   const host = `logs.${region}.amazonaws.com`
   const bodyStr = JSON.stringify(body)
-
-  const headers = signRequest({
-    method: 'POST',
-    host,
-    path: '/',
-    body: bodyStr,
-    target,
-    region,
-    accessKeyId,
-    secretAccessKey
-  })
-
-  const res = await fetch(`https://${host}/`, {
-    method: 'POST',
-    headers,
-    body: bodyStr
-  })
-
+  const headers = signRequest({ method: 'POST', host, path: '/', body: bodyStr, target, region, accessKeyId, secretAccessKey })
+  const res = await fetch(`https://${host}/`, { method: 'POST', headers, body: bodyStr })
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(`CloudWatch ${target} failed: ${text}`)
+    throw new Error(`CloudWatch ${target} failed (${res.status}): ${text}`)
   }
-
   const text = await res.text()
   return text ? JSON.parse(text) : {}
 }
 
-// Ensure log group and stream exist
 async function ensureLogStream(): Promise<void> {
-  try {
-    await cwRequest('Logs_20140328.CreateLogGroup', { logGroupName: LOG_GROUP })
-  } catch (_) {}
-  try {
-    await cwRequest('Logs_20140328.CreateLogStream', {
-      logGroupName: LOG_GROUP,
-      logStreamName: LOG_STREAM
-    })
-  } catch (_) {}
+  try { await cwRequest('Logs_20140328.CreateLogGroup', { logGroupName: LOG_GROUP }) } catch (_) {}
+  try { await cwRequest('Logs_20140328.CreateLogStream', { logGroupName: LOG_GROUP, logStreamName: LOG_STREAM }) } catch (_) {}
 }
 
 export async function sendToCloudWatch(message: string): Promise<void> {
   await ensureLogStream()
-
-  // Get sequence token
   let sequenceToken: string | undefined
   try {
-    const res = await cwRequest('Logs_20140328.DescribeLogStreams', {
-      logGroupName: LOG_GROUP,
-      logStreamNamePrefix: LOG_STREAM
-    })
+    const res = await cwRequest('Logs_20140328.DescribeLogStreams', { logGroupName: LOG_GROUP, logStreamNamePrefix: LOG_STREAM })
     sequenceToken = res.logStreams?.find((s: any) => s.logStreamName === LOG_STREAM)?.uploadSequenceToken
   } catch (_) {}
-
   const params: any = {
     logGroupName: LOG_GROUP,
     logStreamName: LOG_STREAM,
     logEvents: [{ message, timestamp: Date.now() }]
   }
   if (sequenceToken) params.sequenceToken = sequenceToken
-
   await cwRequest('Logs_20140328.PutLogEvents', params)
 }
 
 export async function fetchFromCloudWatch(options?: {
   service?: string
+  school?: string
   limit?: number
 }): Promise<any[]> {
   try {
@@ -156,23 +108,26 @@ export async function fetchFromCloudWatch(options?: {
       startFromHead: false
     })
 
-    const events = (res.events || [])
+    return (res.events || [])
       .map((e: any) => {
         let parsed: any = {}
         try { parsed = JSON.parse(e.message || '{}') } catch (_) {}
         return {
           timestamp: new Date(e.timestamp || 0).toISOString(),
           message: e.message || '',
-          school: parsed.school,
-          service: parsed.service,
-          status: parsed.status,
-          latency: parsed.latency
+          school: parsed.school || null,
+          service: parsed.service || null,
+          status: parsed.status || null,
+          latency: parsed.latency || null
         }
       })
-      .filter((e: any) => !options?.service || e.service === options.service)
+      .filter((e: any) => {
+        if (options?.service && e.service !== options.service) return false
+        if (options?.school && options.school !== 'All' && e.school !== options.school) return false
+        // Only return logs that have valid structured data
+        return e.service !== null && e.status !== null
+      })
       .reverse()
-
-    return events
   } catch (err: any) {
     console.error('CloudWatch fetch error:', err.message)
     return []
